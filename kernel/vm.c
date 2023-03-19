@@ -303,7 +303,6 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -312,11 +311,15 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    //If pte has already Write bit
+    if (flags & PTE_W){
+      //Mark pte as COW and not writeable (read-only)
+      flags = (flags | PTE_COW) & (~PTE_W);
+      *pte = PA2PTE(pa) | flags;
+    }
+    //increment reference counter
+    increment_refc(pa);
+    if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
       goto err;
     }
   }
@@ -350,6 +353,10 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    //Call Cow handler to handle page exceptions
+    if(pfault_handle(pagetable,va0) != 0){
+      return -1;
+    }
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
@@ -431,4 +438,36 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+
+//Check if page is user, valid and cow.
+//If so create a new page by copying the current 
+int 
+pfault_handle(pagetable_t pagetable, uint64 va)
+{
+  uint flags;
+  //Check for available memory. If not return error value
+  if (va >= MAXVA) 
+    return -1;
+  pte_t *pte = walk(pagetable, va, 0);
+  //Check for pte. If not return error value
+  if(pte == 0)
+    return -1;
+  //Check if page is user and valid. If not return error value
+  if ((*pte & PTE_U) == 0 || (*pte & PTE_V) == 0)
+    return -1;
+  uint64 pa = PTE2PA(*pte); //get shared page between child and parent processes
+  //If page is marked as cow then make a copy of this page to a new 
+  if(*pte & PTE_COW){
+    char* mem = kalloc(); //allocate memory for mem. Mem is the new page
+    if (mem == 0)
+      return -1;
+    memmove(mem, (void *)pa, PGSIZE); // copy to mem with page size
+    flags = PTE_FLAGS((*pte & (~PTE_COW)) | PTE_W); //get flags with Write bit and without Cow mark
+    *pte = PA2PTE((uint64)mem) | flags; // move flags to new page
+    kfree((void*)pa);
+    return 0;
+  }
+  return 0;
 }

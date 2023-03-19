@@ -65,6 +65,13 @@ usertrap(void)
     intr_on();
 
     syscall();
+  }
+  // Case of an error on read-only page, instruction page fault or load page fault
+  else if (r_scause() == 15 || r_scause() == 13 || r_scause() == 12 ) {
+    // Call Cow Handler
+    if(pfault_handle(p->pagetable,r_stval()) != 0)
+      p->killed = 1; //kill process if failed
+
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
