@@ -5,4 +5,8 @@ _*
 *.asm
 *.sym
 *.img
-
+mkfs/mkfs
+user/initcode
+user/initcode.out
+kernel/kernel
+user/usys.S
