@@ -8,17 +8,17 @@ Fork system call creates a table of entries (Page table entries or PTEs) for all
 
 ## Brief Docs
 ### kernel/ricv.h
-**PTE_COW**: this flag indicates that a page is shareable between processes and should be read-only as well. 8th bit is used for this flag 
+- **PTE_COW**: this flag indicates that a page is shareable between processes and should be read-only as well. 8th bit is used for this flag 
 ### kernel/kalloc.c
-**kmem.refc**: this is a reference counter, meaning that it counts how many processes are using this page. Once the counter gets 0 the page can be deleted by kfree().
-**increment_refc()**: increments the reference counter.
-**kfree()**: the reference counter is decremented if it is above 0.
+- **kmem.refc**: this is a reference counter, meaning that it counts how many processes are using this page. Once the counter gets 0 the page can be deleted by kfree().
+- **increment_refc()**: increments the reference counter.
+- **kfree()**: the reference counter is decremented if it is above 0.
 ### kernel/vm.c
-**uvmcopy()**: the part that allocates new page is deleted and instead, the reference counter is incremented. The page is marked as COW with PTE_COW flag and the PTE references the parent page.
-**pfault_handle()**: this handler checks for available virtual address and whether a page is valid and user. If the page is also marked as COW, then it copies the shared page that needs to be written from a process.
-**copyout()**: the call for the cow handler (pfault_handle()) is also needed here.
+- **uvmcopy()**: the part that allocates new page is deleted and instead, the reference counter is incremented. The page is marked as COW with PTE_COW flag and the PTE references the parent page.
+- **pfault_handle()**: this handler checks for available virtual address and whether a page is valid and user. If the page is also marked as COW, then it copies the shared page that needs to be written from a process.
+- **copyout()**: the call for the cow handler (pfault_handle()) is also needed here.
 ### kernel/trap.c
-**usertrap()**: I also call the cow_handler whenever there is a page fault code of 15, 13 and 12. Code 15 means that a process tried to write on a read-only page, 13 indicates an error while reading the page and 12 indicates an error while executing a command regarding the page.
+- **usertrap()**: I also call the cow_handler whenever there is a page fault code of 15, 13 and 12. Code 15 means that a process tried to write on a read-only page, 13 indicates an error while reading the page and 12 indicates an error while executing a command regarding the page.
 
 
 ## Build and run project
